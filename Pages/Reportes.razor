@@ -1,0 +1,47 @@
+﻿@page "/reportes-socios"
+@inject SociosApp.Services.SupabaseService Supabase
+
+<h3 class="mb-4">Listado de Socios (Reportes)</h3>
+
+@if (socios is null)
+{
+    <p><em>Cargando...</em></p>
+}
+else
+{
+    <table class="table table-striped shadow-sm">
+        <thead class="table-primary">
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Email</th>
+                <th>Teléfono</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in socios)
+            {
+                <tr>
+                    <td>@s.Socioid</td>
+                    <td>@s.Nombre</td>
+                    <td>@s.Apellido</td>
+                    <td>@s.Email</td>
+                    <td>@s.Telefono</td>
+                    <td>@s.Estado</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<Socio>? socios;
+
+    protected override async Task OnInitializedAsync()
+    {
+        socios = await Supabase.GetSociosAsync();
+    }
+}
+

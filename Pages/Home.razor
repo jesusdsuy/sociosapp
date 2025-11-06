@@ -1,0 +1,17 @@
+﻿@page "/home"
+@inject NavigationManager Navigation
+@inject AuthService Auth
+
+<h3>Bienvenido a SociosApp</h3>
+<p>Usá el menú superior para navegar entre las secciones.</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await Auth.EstaLogueadoAsync())
+        {
+            Navigation.NavigateTo("/", true); // redirige al login
+        }
+    }
+}
+

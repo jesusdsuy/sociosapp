@@ -1,0 +1,75 @@
+﻿@page "/"
+@layout Layout.EmptyLayout
+@inject IJSRuntime JS
+@inject SupabaseService Supabase
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<div class="container mt-5" style="max-width:400px;">
+    <div class="card shadow p-4">
+        <h3 class="text-center mb-4">Iniciar Sesión</h3>
+
+        <div class="mb-3">
+            <label>Usuario</label>
+            <input type="text" class="form-control" @bind="usuario" />
+        </div>
+        <div class="mb-3">
+            <label>Contraseña</label>
+            <input type="password" class="form-control" @bind="clave" />
+        </div>
+
+        <div class="d-grid">
+            <button class="btn btn-primary" @onclick="IniciarSesionAsync">Ingresar</button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(mensaje))
+        {
+            <div class="alert alert-danger mt-3">@mensaje</div>
+        }
+    </div>
+</div>
+
+@code {
+    private string usuario = "";
+    private string clave = "";
+    private string mensaje = "";
+
+    [Parameter] public EventCallback<string> OnLoginSuccess { get; set; }
+
+    private async Task IniciarSesionAsync_original()
+    {
+        try
+        {
+            var resultado = await Supabase.GetUsuarioAsync(usuario, clave);
+
+            if (resultado != null)
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "usuario", resultado.Nombre);
+                await JS.InvokeVoidAsync("localStorage.setItem", "nivel", resultado.Nivel.ToString());
+                await OnLoginSuccess.InvokeAsync(resultado.Nombre);
+            }
+            else
+            {
+                mensaje = "Usuario o contraseña incorrectos.";
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task IniciarSesionAsync()
+    {
+        var resultado = await Supabase.GetUsuarioAsync(usuario, clave);
+        if (resultado != null)
+        {
+            await Auth.GuardarUsuarioAsync(resultado.Nombre);
+            Navigation.NavigateTo("/home", true);
+        }
+        else
+        {
+            mensaje = "Usuario o contraseña incorrectos.";
+        }
+    }
+}

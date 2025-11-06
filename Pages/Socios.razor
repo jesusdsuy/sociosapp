@@ -1,0 +1,179 @@
+﻿@page "/socios"
+@inject SociosApp.Services.SupabaseService Supabase
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@inject AuthService Auth
+
+<h3 class="mb-3 text-primary">Gestión de Socios</h3>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="input-group w-50">
+        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" placeholder="Buscar socio..."
+               @bind="filtroTexto" @bind:event="oninput" />
+    </div>
+
+    <button class="btn btn-success" @onclick="NuevoSocio">
+        <i class="bi bi-plus-lg"></i> Nuevo Socio
+    </button>
+</div>
+
+<table class="table table-hover align-middle shadow-sm">
+    <thead class="table-primary">
+        <tr>
+            <th>Nombre</th>
+            <th>Apellido</th>
+            <th>Teléfono</th>
+            <th>Email</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var s in sociosFiltrados)
+        {
+            <tr>
+                <td>@s.Nombre</td>
+                <td>@s.Apellido</td>
+                <td>@s.Telefono</td>
+                <td>@s.Email</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarSocio(s)">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarEliminar(s)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@* --- Modal de Alta/Edición --- *@
+<div class="modal fade" id="editarModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header @(modoEdicion ? "bg-primary text-white" : "bg-success text-white")">
+                <h5 class="modal-title">@(modoEdicion ? "Editar Socio" : "Nuevo Socio")</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label>Nombre</label>
+                    <input class="form-control" @bind="socioEdit.Nombre" />
+                </div>
+                <div class="mb-3">
+                    <label>Apellido</label>
+                    <input class="form-control" @bind="socioEdit.Apellido" />
+                </div>
+                <div class="mb-3">
+                    <label>Teléfono</label>
+                    <input class="form-control" @bind="socioEdit.Telefono" />
+                </div>
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input class="form-control" @bind="socioEdit.Email" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="GuardarCambios">
+                    @(modoEdicion ? "Guardar cambios" : "Agregar socio")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* --- Modal de Eliminación --- *@
+<div class="modal fade" id="eliminarModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Eliminar Socio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                ¿Está seguro que desea eliminar a <b>@socioEliminar?.Nombre @socioEliminar?.Apellido</b>?
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-danger" @onclick="EliminarSocio">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Socio> socios = new();
+    private string filtroTexto = "";
+    private Socio socioEdit = new();
+    private Socio? socioEliminar;
+    private bool modoEdicion = false;
+
+    private List<Socio> sociosFiltrados =>
+        string.IsNullOrWhiteSpace(filtroTexto)
+            ? socios
+            : socios.Where(s =>
+                s.Nombre.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase) ||
+                s.Apellido.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        socios = await Supabase.GetSociosAsync();
+    }
+
+    private async Task NuevoSocio()
+    {
+        modoEdicion = false;
+        socioEdit = new Socio();
+        await JSRuntime.InvokeVoidAsync("bootstrapModal.show", "#editarModal");
+    }
+
+    private async Task EditarSocio(Socio s)
+    {
+        modoEdicion = true;
+        socioEdit = new Socio
+        {
+            Socioid = s.Socioid,
+            Nombre = s.Nombre,
+            Apellido = s.Apellido,
+            Telefono = s.Telefono,
+            Email = s.Email
+        };
+
+        await JSRuntime.InvokeVoidAsync("bootstrapModal.show", "#editarModal");
+    }
+
+    private async Task GuardarCambios()
+    {
+        if (modoEdicion)
+        {
+            await Supabase.UpdateSocioAsync(socioEdit);
+        }
+        else
+        {
+            await Supabase.InsertSocioAsync(socioEdit);
+        }
+
+        socios = await Supabase.GetSociosAsync();
+        await JSRuntime.InvokeVoidAsync("bootstrapModal.hide", "#editarModal");
+    }
+
+    private async Task ConfirmarEliminar(Socio s)
+    {
+        socioEliminar = s;
+        await JSRuntime.InvokeVoidAsync("bootstrapModal.show", "#eliminarModal");
+    }
+
+    private async Task EliminarSocio()
+    {
+        if (socioEliminar != null)
+        {
+            await Supabase.DeleteSocioAsync(socioEliminar.Socioid);
+            socios = await Supabase.GetSociosAsync();
+        }
+
+        await JSRuntime.InvokeVoidAsync("bootstrapModal.hide", "#eliminarModal");
+    }
+}
