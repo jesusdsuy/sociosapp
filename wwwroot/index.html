@@ -55,7 +55,40 @@
             }
         };
     </script>
+    <script>
+        window.descargarArchivo = (nombre, tipo, contenidoBase64) => {
+            const byteCharacters = atob(contenidoBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: tipo });
+            const url = URL.createObjectURL(blob);
 
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = nombre;
+
+            // ✅ Safari en iPhone a veces ignora "click" -> abrimos nueva pestaña
+            if (navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
+                window.open(url, '_blank');
+            } else {
+                link.click();
+            }
+
+            // Liberar memoria después de unos segundos
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        };
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        window.detectarDispositivo = () => {
+            const ancho = window.innerWidth;
+            return ancho < 992 ? "movil" : "desktop"; // coincide con breakpoint "lg" de Bootstrap
+        };
+    </script>
 </body>
 
 </html>

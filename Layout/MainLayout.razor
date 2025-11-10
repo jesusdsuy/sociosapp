@@ -20,9 +20,27 @@
                 <li class="nav-item">
                     <NavLink class="nav-link" href="/socios">Socios</NavLink>
                 </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="/reportes-socios">Reportes</NavLink>
+               <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="reportesDropdown" role="button" data-bs-toggle="dropdown">
+                        Reportes
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="reportesDropdown">
+                        <li><NavLink class="dropdown-item" href="/reporte-socios">Listado de Socios</NavLink></li>
+                        <li><NavLink class="dropdown-item" href="/reporte-saldos">Listado de Saldos</NavLink></li>
+                        <li><NavLink class="dropdown-item" href="/reporte-movimientos">Movimientos Entre Fechas</NavLink></li>
+                    </ul>
                 </li>
+
+
+                <li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" href="#" id="cuentaDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        Cuenta Corriente
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="cuentaDropdown">
+        <li><NavLink class="dropdown-item" href="/movimientos">Movimientos</NavLink></li>
+        <li><NavLink class="dropdown-item" href="/estado-cuenta">Estado de Cuenta</NavLink></li>
+    </ul>
+</li>
             </ul>
 
             <span class="navbar-text me-3">@usuario</span>

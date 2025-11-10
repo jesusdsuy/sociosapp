@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="iTextSharp.LGPLv2.Core" Version="3.7.8" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.21" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.21" PrivateAssets="all" />
     <PackageReference Include="Supabase" Version="1.1.1" />

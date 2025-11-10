@@ -1,0 +1,205 @@
+﻿@page "/movimientos"
+@inject SociosApp.Services.SupabaseService Supabase
+@inject IJSRuntime JS
+@inject AuthService Auth
+
+<h3 class="mb-3 text-primary">Cuenta Corriente - Movimientos</h3>
+
+<div class="mb-3">
+    <label class="form-label fw-bold">Buscar socio:</label>
+    <input type="text" class="form-control" placeholder="Ingrese nombre o apellido..."
+           value="@filtroSocio" @oninput="OnFiltroSocioChange" />
+
+</div>
+
+@if (sociosFiltrados?.Any() == true)
+{
+    <ul class="list-group mb-3">
+        @foreach (var s in sociosFiltrados)
+        {
+            <li class="list-group-item list-group-item-action"
+                @onclick="@(() => SeleccionarSocio(s))">
+                @s.Nombre @s.Apellido
+            </li>
+        }
+    </ul>
+}
+
+@if (socioSeleccionado != null)
+{
+    <h5 class="mt-4 mb-3 text-secondary">
+        Movimientos de: <b>@socioSeleccionado.Nombre @socioSeleccionado.Apellido</b>
+    </h5>
+
+    <button class="btn btn-success mb-3" @onclick="NuevoMovimiento">
+        <i class="bi bi-plus-lg"></i> Nuevo Movimiento
+    </button>
+
+    @if (movimientos?.Any() == true)
+    {
+        <table class="table table-striped table-hover shadow-sm">
+            <thead class="table-primary">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Documento</th>
+                    <th>Detalle</th>
+                    <th>Observaciones</th>
+                    <th class="text-end">Debe</th>
+                    <th class="text-end">Haber</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in movimientos)
+                {
+                    <tr>
+                        <td>@m.Fecha.ToString("dd/MM/yyyy")</td>
+                        <td>@m.Documento</td>
+                        <td>@m.Detalle</td>
+                        <td>@m.Observaciones</td>
+                        <td class="text-end">@m.Debe?.ToString("N2")</td>
+                        <td class="text-end">@m.Haber?.ToString("N2")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary me-1"
+                                    @onclick="() => EditarMovimiento(m)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => ConfirmarEliminar(m)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p><em>No hay movimientos registrados.</em></p>
+    }
+}
+
+@* MODAL DE EDICIÓN *@
+<div class="modal fade" id="movModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header @(modoEdicion ? "bg-primary text-white" : "bg-success text-white")">
+                <h5 class="modal-title">@tituloModal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label>Fecha</label>
+                    <input type="date" class="form-control" @bind="movEdit.Fecha" />
+                </div>
+                <div class="mb-2">
+                    <label>Documento</label>
+                    <input class="form-control" @bind="movEdit.Documento" />
+                </div>
+                <div class="mb-2">
+                    <label>Detalle</label>
+                    <input class="form-control" @bind="movEdit.Detalle" />
+                </div>
+                <div class="mb-2">
+                    <label>Observaciones</label>
+                    <textarea class="form-control" @bind="movEdit.Observaciones"></textarea>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label>Debe</label>
+                        <input type="number" step="0.01" class="form-control" @bind="movEdit.Debe" />
+                    </div>
+                    <div class="col">
+                        <label>Haber</label>
+                        <input type="number" step="0.01" class="form-control" @bind="movEdit.Haber" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="GuardarMovimiento">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string filtroSocio = "";
+    private List<Socio> sociosFiltrados = new();
+    private Socio? socioSeleccionado;
+
+    private List<Cuentacorriente> movimientos = new();
+
+    private Cuentacorriente movEdit = new();
+    private bool modoEdicion = false;
+    private string tituloModal = "";
+
+    private async Task OnFiltroSocioChange(ChangeEventArgs e)
+    {
+        filtroSocio = e.Value?.ToString() ?? "";
+        await BuscarSocios();
+    }
+    private async Task BuscarSocios()
+    {
+        sociosFiltrados = await Supabase.BuscarSociosAsync(filtroSocio);
+    }
+
+
+    private async Task SeleccionarSocio(Socio socio)
+    {
+        socioSeleccionado = socio;
+        sociosFiltrados.Clear();
+        movimientos = await Supabase.GetCuentaCorrienteBySocioAsync(socio.Socioid);
+    }
+
+    private async Task NuevoMovimiento()
+    {
+        movEdit = new Cuentacorriente
+        {
+            Fecha = DateTime.Now,
+            Socioid = socioSeleccionado!.Socioid
+        };
+        modoEdicion = false;
+        tituloModal = "Nuevo Movimiento";
+        await JS.InvokeVoidAsync("bootstrapModal.show", "#movModal");
+    }
+
+    private async Task EditarMovimiento(Cuentacorriente mov)
+    {
+        movEdit = new Cuentacorriente
+        {
+            Id = mov.Id,
+            Socioid = mov.Socioid,
+            Fecha = mov.Fecha,
+            Documento = mov.Documento,
+            Detalle = mov.Detalle,
+            Observaciones = mov.Observaciones,
+            Debe = mov.Debe,
+            Haber = mov.Haber
+        };
+        modoEdicion = true;
+        tituloModal = "Editar Movimiento";
+        await JS.InvokeVoidAsync("bootstrapModal.show", "#movModal");
+    }
+
+    private async Task GuardarMovimiento()
+    {
+        if (modoEdicion)
+            await Supabase.UpdateMovimientoAsync(movEdit);
+        else
+            await Supabase.InsertMovimientoAsync(movEdit);
+
+        movimientos = await Supabase.GetCuentaCorrienteBySocioAsync(socioSeleccionado!.Socioid);
+        await JS.InvokeVoidAsync("bootstrapModal.hide", "#movModal");
+    }
+
+    private async Task ConfirmarEliminar(Cuentacorriente mov)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", $"¿Eliminar movimiento {mov.Documento}?"))
+        {
+            await Supabase.BorrarMovimientoAsync(mov.Id);
+            movimientos = await Supabase.GetCuentaCorrienteBySocioAsync(socioSeleccionado!.Socioid);
+        }
+    }
+}

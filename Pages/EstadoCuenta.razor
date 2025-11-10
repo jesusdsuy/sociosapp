@@ -1,0 +1,211 @@
+﻿@page "/estado-cuenta"
+@using System.Text
+@using System.Globalization
+@using iTextSharp.text
+@using iTextSharp.text.pdf
+@inject SupabaseService Supabase
+@inject IJSRuntime JS
+
+<h3>Estado de Cuenta</h3>
+
+<div class="mb-3">
+    <label>Buscar socio:</label>
+    <input type="text" class="form-control" placeholder="Ingrese nombre o apellido..."
+           value="@filtroSocio" @oninput="OnFiltroSocioChange" />
+
+    <ul class="list-group mt-2">
+        @if (sociosFiltrados != null)
+        {
+            @foreach (var socio in sociosFiltrados)
+            {
+                <li class="list-group-item list-group-item-action"
+                    @onclick="() => SeleccionarSocio(socio)">
+                    @socio.Nombre @socio.Apellido
+                </li>
+            }
+        }
+    </ul>
+</div>
+
+@if (lineas != null && lineas.Any())
+{
+    <h5 class="mt-4">Cuenta corriente de @socioSeleccionado?.Nombre @socioSeleccionado?.Apellido</h5>
+    <div>
+        <button class="btn btn-outline-danger me-2" @onclick="ExportarPDF">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+        </button>
+        <button class="btn btn-outline-success" @onclick="ExportarExcel">
+            <i class="bi bi-file-earmark-excel"></i> Excel
+        </button>
+    </div>
+    <table class="table table-striped">
+        <thead class="table-primary">
+            <tr>
+                <th>Fecha</th>
+                <th>Documento</th>
+                <th>Detalle</th>
+                <th>Observaciones</th>
+                <th class="text-end">Debe</th>
+                <th class="text-end">Haber</th>
+                <th class="text-end">Saldo</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var l in lineas)
+            {
+                <tr>
+                    <td>@l.Fecha.ToShortDateString()</td>
+                    <td>@l.Documento</td>
+                    <td>@l.Detalle</td>
+                    <td>@l.Observaciones</td>
+                    <td class="text-end">@l.Debe?.ToString("N2")</td>
+                    <td class="text-end">@l.Haber?.ToString("N2")</td>
+                    <td class="text-end">@l.Saldo?.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+        <tfoot class="fw-bold table-light">
+            <tr>
+                <td colspan="4" class="text-end">Totales:</td>
+                <td class="text-end">@totalDebe.ToString("N2")</td>
+                <td class="text-end">@totalHaber.ToString("N2")</td>
+                <td class="text-end">@saldoFinal.ToString("N2")</td>
+            </tr>
+        </tfoot>
+    </table>
+}
+
+
+@code {
+    private string filtroSocio = "";
+    private List<Socio> sociosFiltrados = new();
+    private Socio? socioSeleccionado;
+    private List<LineaCuentaCorriente>? lineas;
+    private decimal totalDebe = 0;
+    private decimal totalHaber = 0;
+    private decimal saldoFinal = 0;
+
+    private async Task SeleccionarSocio(Socio socio)
+    {
+        socioSeleccionado = socio;
+        lineas = await Supabase.ObtenerEstadoDeCuentaAsync(socio.Socioid);
+
+        totalDebe = lineas.Sum(x => x.Debe ?? 0);
+        totalHaber = lineas.Sum(x => x.Haber ?? 0);
+        saldoFinal = lineas.LastOrDefault()?.Saldo ?? 0;
+    }
+
+    private async Task OnFiltroSocioChange(ChangeEventArgs e)
+    {
+        filtroSocio = e.Value?.ToString() ?? "";
+        await BuscarSocios();
+    }
+    private async Task BuscarSocios()
+    {
+        sociosFiltrados = await Supabase.BuscarSociosAsync(filtroSocio);
+    }
+
+    private async Task ExportarPDF()
+    {
+        if (lineas == null || !lineas.Any() || socioSeleccionado == null)
+            return;
+
+        var nombreArchivo = $"EstadoCuenta_{socioSeleccionado.Nombre}_{DateTime.Now:yyyyMMddHHmm}.pdf";
+
+        using var ms = new MemoryStream();
+        var doc = new iTextSharp.text.Document(iTextSharp.text.PageSize.A4, 40, 40, 40, 40);
+        var writer = iTextSharp.text.pdf.PdfWriter.GetInstance(doc, ms);
+        doc.Open();
+
+        var fontTitulo = iTextSharp.text.FontFactory.GetFont("Arial", 14, iTextSharp.text.Font.BOLD);
+        var fontTexto = iTextSharp.text.FontFactory.GetFont("Arial", 10);
+        var fontBold = iTextSharp.text.FontFactory.GetFont("Arial", 10, iTextSharp.text.Font.BOLD);
+
+        doc.Add(new iTextSharp.text.Paragraph($"Estado de Cuenta de {socioSeleccionado.Nombre} {socioSeleccionado.Apellido}", fontTitulo));
+        doc.Add(new iTextSharp.text.Paragraph($"Fecha: {DateTime.Now:dd/MM/yyyy}\n\n", fontTexto));
+
+        var table = new iTextSharp.text.pdf.PdfPTable(7);
+        table.WidthPercentage = 100;
+        table.SetWidths(new float[] { 1.2f, 1.2f, 2f, 2f, 1f, 1f, 1f });
+
+        string[] headers = { "Fecha", "Documento", "Detalle", "Observaciones", "Debe", "Haber", "Saldo" };
+        foreach (var h in headers)
+            table.AddCell(new iTextSharp.text.pdf.PdfPCell(new iTextSharp.text.Phrase(h, fontBold)) { BackgroundColor = iTextSharp.text.BaseColor.Gray });
+
+        foreach (var l in lineas)
+        {
+            // Fecha (centrada)
+            table.AddCell(new PdfPCell(new Phrase(l.Fecha.ToString("dd/MM/yyyy"), fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_CENTER
+            });
+
+            // Documento (izquierda)
+            table.AddCell(new PdfPCell(new Phrase(l.Documento, fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_LEFT
+            });
+
+            // Detalle (izquierda)
+            table.AddCell(new PdfPCell(new Phrase(l.Detalle, fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_LEFT
+            });
+
+            // Observaciones (izquierda)
+            table.AddCell(new PdfPCell(new Phrase(l.Observaciones, fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_LEFT
+            });
+
+            // Debe (derecha)
+            table.AddCell(new PdfPCell(new Phrase($"{l.Debe:N2}", fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_RIGHT
+            });
+
+            // Haber (derecha)
+            table.AddCell(new PdfPCell(new Phrase($"{l.Haber:N2}", fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_RIGHT
+            });
+
+            // Saldo (derecha)
+            table.AddCell(new PdfPCell(new Phrase($"{l.Saldo:N2}", fontTexto))
+            {
+                HorizontalAlignment = Element.ALIGN_RIGHT
+            });
+        }
+
+
+        doc.Add(table);
+
+        doc.Add(new iTextSharp.text.Paragraph($"\nTotal Debe: {totalDebe:N2}   -   Total Haber: {totalHaber:N2}   -   Saldo Final: {saldoFinal:N2}", fontBold));
+
+        doc.Close();
+
+        var base64 = Convert.ToBase64String(ms.ToArray());
+        await JS.InvokeVoidAsync("descargarArchivo", nombreArchivo, "application/pdf", base64);
+    }
+
+    private async Task ExportarExcel()
+    {
+        if (lineas == null || !lineas.Any() || socioSeleccionado == null)
+            return;
+
+        var nombreArchivo = $"EstadoCuenta_{socioSeleccionado.Nombre}_{DateTime.Now:yyyyMMddHHmm}.csv";
+        var sb = new StringBuilder();
+        var sep = CultureInfo.CurrentCulture.TextInfo.ListSeparator;
+        sb.AppendLine($"Fecha{sep}Documento{sep}Detalle{sep}Observaciones{sep}Debe{sep}Haber{sep}Saldo");
+       
+        foreach (var l in lineas)
+       //     sb.AppendLine($"{l.Fecha:dd/MM/yyyy},{l.Documento},{l.Detalle},{l.Observaciones},{l.Debe},{l.Haber},{l.Saldo}");
+{       
+        sb.AppendLine($"{l.Fecha}{sep}{l.Documento}{sep}{l.Detalle}{sep}{l.Observaciones}{sep}{l.Debe}{sep}{l.Haber}{sep}{l.Saldo}");
+}
+        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(sb.ToString()));
+        await JS.InvokeVoidAsync("descargarArchivo", nombreArchivo, "text/csv", base64);
+    }
+
+  
+}
